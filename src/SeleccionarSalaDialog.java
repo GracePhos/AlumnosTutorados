@@ -10,7 +10,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import java.sql.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-
+@SuppressWarnings("unused")
 class SeleccionarSalaDialog extends Stage {
     private String salaSeleccionada;
     private ComboBox<String> cbCampus = new ComboBox<>();
