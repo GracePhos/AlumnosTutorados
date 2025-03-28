@@ -1,13 +1,14 @@
 public class Campus {
     private String nombreCampus;
     private String edificios;
+    private String idCampus;
 
     // Constructor
-    public Campus(String nombreCampus, String edificios) {
+    public Campus(String idCampus, String nombreCampus, String edificios) {
+        this.idCampus = idCampus;
         this.nombreCampus = nombreCampus;
         this.edificios = edificios;
     }
-
     // Getters (necesarios para PropertyValueFactory)
     public String getNombreCampus() {
         return nombreCampus;
@@ -16,4 +17,9 @@ public class Campus {
     public String getEdificios() {
         return edificios;
     }
+
+    public String getIdCampus() {
+        return idCampus;
+    }
+
 }

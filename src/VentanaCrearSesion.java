@@ -68,11 +68,11 @@ public class VentanaCrearSesion {
             String alumnoSeleccionado = listaAlumnos.getSelectionModel().getSelectedItem();
             String sala = lblSalaSeleccionada.getText();
 
-            if (alumnoSeleccionado == null || sala.equals("Ninguna sala seleccionada")) {
+            if (alumnoSeleccionado == null || sala.equals("Ninguna sala seleccionada") || datePicker.getValue() == null || tfHora.getText().isEmpty() || tfResumen.getText().isEmpty()) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
                 alert.setTitle("Error");
                 alert.setHeaderText(null);
-                alert.setContentText("¡Selecciona un alumno y una sala!");
+                alert.setContentText("Por favor, complete todos los campos.");
                 alert.showAndWait();
                 return;
             }
@@ -128,7 +128,7 @@ public class VentanaCrearSesion {
                 alert.setHeaderText(null);
                 alert.setContentText("Error inesperado: " + ex.getMessage());
                 alert.showAndWait();
-            }
+            } 
         });
 
         // Diseño de la ventana

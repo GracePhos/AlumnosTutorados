@@ -30,6 +30,12 @@ public class LoginApp extends Application {
                 mostrarAlerta("Error", "Todos los campos son obligatorios", Alert.AlertType.ERROR);
                 return;
             }
+            // Credenciales simples para DBA 
+            if (tfUsuario.getText().equals("dba") && pfContraseña.getText().equals("dba")) {
+                new VentanaDBAdmin().mostrar();
+                stage.close();
+                return;
+            }  
 
             if (!validarLongitudes(tfUsuario.getText(), pfContraseña.getText())) return;
 

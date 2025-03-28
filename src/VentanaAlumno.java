@@ -19,6 +19,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import java.sql.*;
 
+@SuppressWarnings("unused")
 public class VentanaAlumno {
     private String[] datosAlumno;
 
@@ -26,6 +27,7 @@ public class VentanaAlumno {
         this.datosAlumno = datosAlumno;
     }
 
+    @SuppressWarnings("unchecked")
     public void mostrar() {
         Stage ventana = new Stage();
         ventana.setTitle("Sesiones del Alumno - " + datosAlumno[1]);
@@ -33,6 +35,9 @@ public class VentanaAlumno {
         TableView<Sesion> tabla = new TableView<>();
 
         // Columnas de la tabla
+        TableColumn<Sesion, String> colCampus = new TableColumn<>("Campus");
+        colCampus.setCellValueFactory(new PropertyValueFactory<>("campus"));
+
         TableColumn<Sesion, String> colFecha = new TableColumn<>("Fecha");
         colFecha.setCellValueFactory(new PropertyValueFactory<>("fecha"));
 
@@ -45,7 +50,7 @@ public class VentanaAlumno {
         TableColumn<Sesion, String> colDescripcion = new TableColumn<>("Descripción");
         colDescripcion.setCellValueFactory(new PropertyValueFactory<>("resumen"));
 
-        tabla.getColumns().addAll(colFecha, colHora, colSala, colDescripcion);
+        tabla.getColumns().addAll(colFecha, colHora, colSala, colCampus, colDescripcion);
 
         // Cargar datos de las sesiones del alumno
         try (Connection conn = conexion.conectar()) {
