@@ -4,12 +4,13 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import java.sql.*;
-
+@SuppressWarnings("unused")
 public class VentanaDBAdmin {
     private Stage ventana = new Stage();
     private TextField tfId = new TextField();
     private TextField tfNombre = new TextField();
-    private TextArea taHistorial = new TextArea();
+    private ComboBox<String> cbCampus = new ComboBox<>();
+    private ListView<String> lvCampus = new ListView<>();
     private Connection conn;
     
     private ToggleGroup tgOperacion = new ToggleGroup();
@@ -19,10 +20,10 @@ public class VentanaDBAdmin {
 
     public void mostrar() {
         configurarUI();
-        ventana.setScene(new Scene(crearLayoutPrincipal(), 600, 400));
+        ventana.setScene(new Scene(crearLayoutPrincipal(), 600, 500));
         ventana.setTitle("Gestión de Campus");
         ventana.show();
-        cargarCampusAlInicio();
+        cargarCampus();
     }
 
     private void configurarUI() {
@@ -40,9 +41,9 @@ public class VentanaDBAdmin {
         boolean actualizar = rbActualizar.isSelected();
         boolean eliminar = rbEliminar.isSelected();
 
+        cbCampus.setDisable(insertar);
         tfId.setDisable(insertar);
         tfId.setOpacity(insertar ? 0.3 : 1);
-        
         tfNombre.setDisable(eliminar);
         tfNombre.setOpacity(eliminar ? 0.3 : 1);
     }
@@ -57,8 +58,12 @@ public class VentanaDBAdmin {
         GridPane gpFormulario = new GridPane();
         gpFormulario.setVgap(10);
         gpFormulario.setHgap(10);
-        gpFormulario.addRow(0, new Label("ID Campus:"), tfId);
-        gpFormulario.addRow(1, new Label("Nombre:"), tfNombre);
+        gpFormulario.addRow(0, new Label("Seleccionar Campus:"), cbCampus);
+        gpFormulario.addRow(1, new Label("ID Campus:"), tfId);
+        gpFormulario.addRow(2, new Label("Nombre:"), tfNombre);
+        
+        cbCampus.setOnAction(e -> rellenarCampos());
+        lvCampus.setOnMouseClicked(e -> rellenarCamposDesdeLista());
         
         Button btnEjecutar = new Button("Ejecutar");
         btnEjecutar.setOnAction(e -> ejecutarOperacion());
@@ -68,23 +73,22 @@ public class VentanaDBAdmin {
         
         HBox panelBotones = new HBox(10, btnEjecutar, btnLimpiar);
         
-        taHistorial.setEditable(false);
-        taHistorial.setPrefHeight(200);
+        Label lblLista = new Label("Lista de Campus:");
+        lvCampus.setPrefHeight(150);
         
         layout.getChildren().addAll(
             new Label("GESTIÓN DE CAMPUS (DBA)"),
             panelOperaciones,
             gpFormulario,
             panelBotones,
-            new Label("Historial:"),
-            taHistorial
+            lblLista,
+            lvCampus
         );
         
         return layout;
     }
 
     private void ejecutarOperacion() {
-        taHistorial.clear();
         try {
             conn = conexion.conectar();
             
@@ -96,7 +100,7 @@ public class VentanaDBAdmin {
                 eliminarCampus();
             }
             
-            cargarCampusAlInicio();
+            cargarCampus();
         } catch (SQLException e) {
             mostrarError("Error de base de datos: " + e.getMessage());
         } finally {
@@ -106,11 +110,19 @@ public class VentanaDBAdmin {
         }
     }
 
-    private void cargarCampusAlInicio() {
-        taHistorial.clear();
+    private void cargarCampus() {
+        cbCampus.getItems().clear();
+        lvCampus.getItems().clear();
         try {
             conn = conexion.conectar();
-            consultarCampus();
+            String query = "SELECT idCampus, nombre FROM Campus";
+            PreparedStatement stmt = conn.prepareStatement(query);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String campus = rs.getInt("idCampus") + " - " + rs.getString("nombre");
+                cbCampus.getItems().add(campus);
+                lvCampus.getItems().add(campus);
+            }
         } catch (SQLException e) {
             mostrarError("Error al cargar campus: " + e.getMessage());
         } finally {
@@ -120,13 +132,22 @@ public class VentanaDBAdmin {
         }
     }
 
-    private void consultarCampus() throws SQLException {
-        String query = "SELECT idCampus, nombre FROM Campus";
-        PreparedStatement stmt = conn.prepareStatement(query);
-        ResultSet rs = stmt.executeQuery();
-        taHistorial.appendText("\n=== TODOS LOS CAMPUS ===\n");
-        while (rs.next()) {
-            taHistorial.appendText(rs.getInt("idCampus") + ": " + rs.getString("nombre") + "\n");
+    private void rellenarCampos() {
+        if (cbCampus.getValue() == null) return;
+        String[] partes = cbCampus.getValue().split(" - ", 2);
+        if (partes.length == 2) {
+            tfId.setText(partes[0]);
+            tfNombre.setText(partes[1]);
+        }
+    }
+    
+    private void rellenarCamposDesdeLista() {
+        String seleccion = lvCampus.getSelectionModel().getSelectedItem();
+        if (seleccion == null) return;
+        String[] partes = seleccion.split(" - ", 2);
+        if (partes.length == 2) {
+            tfId.setText(partes[0]);
+            tfNombre.setText(partes[1]);
         }
     }
 
@@ -139,7 +160,6 @@ public class VentanaDBAdmin {
         PreparedStatement stmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
         stmt.setString(1, tfNombre.getText());
         stmt.executeUpdate();
-        taHistorial.appendText("Campus insertado exitosamente.\n");
     }
 
     private void actualizarCampus() throws SQLException {
@@ -152,7 +172,6 @@ public class VentanaDBAdmin {
         stmt.setString(1, tfNombre.getText());
         stmt.setInt(2, Integer.parseInt(tfId.getText()));
         stmt.executeUpdate();
-        taHistorial.appendText("Campus actualizado exitosamente.\n");
     }
 
     private void eliminarCampus() throws SQLException {
@@ -160,16 +179,44 @@ public class VentanaDBAdmin {
             mostrarError("Debe especificar un ID");
             return;
         }
-        String query = "DELETE FROM Campus WHERE idCampus = ?";
-        PreparedStatement stmt = conn.prepareStatement(query);
-        stmt.setInt(1, Integer.parseInt(tfId.getText()));
-        stmt.executeUpdate();
-        taHistorial.appendText("Campus eliminado exitosamente.\n");
+        try {
+            String query = "DELETE FROM Campus WHERE idCampus = ?";
+            PreparedStatement stmt = conn.prepareStatement(query);
+            stmt.setInt(1, Integer.parseInt(tfId.getText()));
+            int affectedRows = stmt.executeUpdate();
+    
+            if (affectedRows == 0) {
+                mostrarError("No se pudo eliminar el campus. Verifique que el ID sea correcto.");
+            }
+        } catch (SQLException e) {
+            String sqlState = e.getSQLState();
+    
+            if (sqlState != null) {
+                switch (sqlState) {
+                    case "23000": // Código genérico de violación de integridad
+                        if (e.getMessage().contains("foreign key constraint")) {
+                            mostrarError("No se puede eliminar el campus porque existen registros dependientes.");
+                        } else if (e.getMessage().contains("PRIMARY")) {
+                            mostrarError("Error: ID duplicado. Ya existe un campus con este ID.");
+                        } else {
+                            mostrarError("Error de integridad de datos: " + e.getMessage());
+                        }
+                        break;
+                    default:
+                        throw e; // Lanza el error si no es un caso controlado
+                }
+            } else {
+                throw e;
+            }
+        }
     }
+    
 
     private void limpiarFormulario() {
         tfId.clear();
         tfNombre.clear();
+        cbCampus.getSelectionModel().clearSelection();
+        lvCampus.getSelectionModel().clearSelection();
     }
 
     private void mostrarError(String mensaje) {
@@ -178,6 +225,5 @@ public class VentanaDBAdmin {
         alert.setHeaderText(null);
         alert.setContentText(mensaje);
         alert.showAndWait();
-        taHistorial.appendText("ERROR: " + mensaje + "\n");
     }
 }
