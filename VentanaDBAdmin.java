@@ -12,6 +12,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @SuppressWarnings("unused")
+// (Importaciones y definición de clase igual...)
+
 public class VentanaDBAdmin {
     private Stage ventana = new Stage();
     private Connection conn;
@@ -33,7 +35,8 @@ public class VentanaDBAdmin {
 
     // tutorados
     private ComboBox<String> cbProfesor = new ComboBox<>();
-    private ComboBox<String> cbAlumno = new ComboBox<>();
+    private TextField tfNumeroControlAlumno = new TextField();
+    private TextField tfNombreAlumno = new TextField();
     private Button btnAsignarProfesor = new Button("Asignar Profesor");
     private TableView<Alumno> tableAlumnos = new TableView<>();
     private TableColumn<Alumno, String> colNumeroControl = new TableColumn<>("Número Control");
@@ -69,7 +72,6 @@ public class VentanaDBAdmin {
         tableAlumnos.getColumns().addAll(colNumeroControl, colNombre);
         tableAlumnos.setOnMouseClicked(e -> rellenarCamposDesdeTabla());
 
-        // Establecer la fecha actual en el label
         lblFechaActual.setText("Fecha actual: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
     }
 
@@ -108,7 +110,11 @@ public class VentanaDBAdmin {
         gpTutorados.setVgap(10);
         gpTutorados.setHgap(10);
         gpTutorados.addRow(0, new Label("Profesor Asignado:"), cbProfesor);
-        gpTutorados.addRow(1, new Label("Alumno:"), cbAlumno);
+        gpTutorados.addRow(1, new Label("Nombre del Alumno:"), tfNombreAlumno);
+        gpTutorados.addRow(2, new Label("N. Control:"), tfNumeroControlAlumno);
+
+        tfNombreAlumno.setEditable(false);
+        tfNumeroControlAlumno.setEditable(false);
 
         btnAsignarProfesor.setOnAction(e -> asignarProfesor());
 
@@ -122,12 +128,21 @@ public class VentanaDBAdmin {
         StackPane paneles = new StackPane(panelCampus, panelTutorados);
         panelTutorados.setVisible(false);
 
-        layout.getChildren().addAll(
-            lblFechaActual,
-            new Label("Operación Principal:"),
-            cbOperacionPrincipal,
-            paneles
-        );
+        HBox panelSuperior = new HBox();
+        panelSuperior.setPadding(new Insets(0, 0, 10, 0));
+        panelSuperior.setSpacing(10);
+        panelSuperior.setHgrow(lblFechaActual, Priority.ALWAYS);
+        Label lblAdmin = new Label("Editando como admin");
+        Region espacio = new Region();
+        HBox.setHgrow(espacio, Priority.ALWAYS);
+        panelSuperior.getChildren().addAll(lblFechaActual, espacio, lblAdmin);
+
+layout.getChildren().addAll(
+    panelSuperior,
+    new Label("Operación Principal:"), cbOperacionPrincipal,
+    paneles
+);
+
 
         return layout;
     }
@@ -291,14 +306,11 @@ public class VentanaDBAdmin {
             PreparedStatement stmt = conn.prepareStatement(query);
             ResultSet rs = stmt.executeQuery();
             tableAlumnos.getItems().clear();
-            ObservableList<String> listaAlumnos = FXCollections.observableArrayList();
             while (rs.next()) {
                 String numeroControl = rs.getString("numero_control");
                 String nombreCompleto = rs.getString("nombres") + " " + rs.getString("apellido_paterno");
                 tableAlumnos.getItems().add(new Alumno(numeroControl, nombreCompleto));
-                listaAlumnos.add(numeroControl + " - " + nombreCompleto);
             }
-            cbAlumno.setItems(listaAlumnos);
         } catch (SQLException e) {
             mostrarError("Error al cargar alumnos: " + e.getMessage());
         } finally {
@@ -309,23 +321,21 @@ public class VentanaDBAdmin {
     private void rellenarCamposDesdeTabla() {
         Alumno seleccionado = tableAlumnos.getSelectionModel().getSelectedItem();
         if (seleccionado != null) {
-            cbAlumno.setValue(seleccionado.getNumeroControl() + " - " + seleccionado.getNombre());
+            tfNombreAlumno.setText(seleccionado.getNombre());
+            tfNumeroControlAlumno.setText(seleccionado.getNumeroControl());
         }
     }
 
     private void asignarProfesor() {
-        Alumno alumnoSeleccionado = tableAlumnos.getSelectionModel().getSelectedItem();
         String profesorSeleccionado = cbProfesor.getValue();
+        String numeroControlStr = tfNumeroControlAlumno.getText();
 
-        if (profesorSeleccionado == null || alumnoSeleccionado == null) {
+        if (profesorSeleccionado == null || numeroControlStr.isEmpty()) {
             mostrarError("Debes seleccionar un profesor y un alumno.");
             return;
         }
 
-        String[] profesorParts = profesorSeleccionado.split(" - ");
-        int idProfesor = Integer.parseInt(profesorParts[0].trim());
-
-        String numeroControlStr = alumnoSeleccionado.getNumeroControl();
+        int idProfesor = Integer.parseInt(profesorSeleccionado.split(" - ")[0].trim());
         int numeroControl = Integer.parseInt(numeroControlStr);
 
         try (Connection conn = conexion.conectar()) {
@@ -336,9 +346,9 @@ public class VentanaDBAdmin {
             int filasAfectadas = stmt.executeUpdate();
 
             if (filasAfectadas > 0) {
-                Alert alerta = new Alert(Alert.AlertType.INFORMATION, 
+                Alert alerta = new Alert(Alert.AlertType.INFORMATION,
                     "Asignación Exitosa:\n" +
-                    "Alumno: " + alumnoSeleccionado.getNombre() + "\n" +
+                    "Alumno: " + tfNombreAlumno.getText() + "\n" +
                     "No. Control: " + numeroControl + "\n" +
                     "Profesor ID: " + idProfesor + "\n" +
                     "Fecha: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -346,6 +356,8 @@ public class VentanaDBAdmin {
                 alerta.showAndWait();
                 tableAlumnos.getSelectionModel().clearSelection();
                 cbProfesor.getSelectionModel().clearSelection();
+                tfNombreAlumno.clear();
+                tfNumeroControlAlumno.clear();
                 cargarAlumnos();
             } else {
                 mostrarError("No se encontró el alumno seleccionado.");
