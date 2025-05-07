@@ -1,8 +1,6 @@
 # AlumnosTutorados
 
-Para crear las clases, desde VSCode se deben de agregar como tal, no crear los archivos .java,
-En teoría, las lib de JavaFX no deberían ser necesarias si las tienes agregadas ya en el proyecto,
-pero debido a ciertas situaciones pues se agregan por si acaso.
+La instruccion de crear las clases como clases y no como .java está deprecada, solo con hacerla .java está bien. para ingresar al dba pon 'dba' en ambos usuario y contraseña
 
 Se supone que los botones deberían de tener iconos, pero no me dejó ponerlos, y como ya había
 hecho la lógica de esa manera, pues la dejé, junto a una imagen de Suisei.
