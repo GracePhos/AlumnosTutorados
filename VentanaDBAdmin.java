@@ -6,19 +6,16 @@ import javafx.stage.Stage;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.beans.property.SimpleIntegerProperty;
 import java.sql.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @SuppressWarnings("unused")
-// (Importaciones y definición de clase igual...)
-
 public class VentanaDBAdmin {
     private Stage ventana = new Stage();
     private Connection conn;
 
-    // campus
+    // Componentes para Campus
     private TextField tfId = new TextField();
     private TextField tfNombre = new TextField();
     private ComboBox<String> cbCampus = new ComboBox<>();
@@ -28,32 +25,45 @@ public class VentanaDBAdmin {
     private RadioButton rbActualizar = new RadioButton("Actualizar");
     private RadioButton rbEliminar = new RadioButton("Eliminar");
 
-    // control de paneles
+    // Control de paneles
     private ComboBox<String> cbOperacionPrincipal = new ComboBox<>();
     private VBox panelCampus = new VBox(10);
     private VBox panelTutorados = new VBox(10);
 
-    // tutorados
+    // Componentes para Tutorados
     private ComboBox<String> cbProfesor = new ComboBox<>();
     private TextField tfNumeroControlAlumno = new TextField();
     private TextField tfNombreAlumno = new TextField();
     private Button btnAsignarProfesor = new Button("Asignar Profesor");
-    private TableView<Alumno> tableAlumnos = new TableView<>();
-    private TableColumn<Alumno, String> colNumeroControl = new TableColumn<>("Número Control");
-    private TableColumn<Alumno, String> colNombre = new TableColumn<>("Nombre");
-
-    // label de fecha
+    private TableView<Alumno> tableAlumnosDisponibles = new TableView<>();
+    private TableView<Alumno> tableAlumnosAsignados = new TableView<>();
+    private SplitPane splitPaneTablas = new SplitPane();
+    
+    // Label de fecha
     private Label lblFechaActual = new Label();
 
+    /**
+     * Muestra la ventana de gestión de campus y tutorados.
+     * Configura la interfaz de usuario, crea el layout principal y
+     * muestra la ventana con el título que incluye la fecha actual.
+     * Luego carga los campus y profesores en sus respectivos
+     * componentes.
+     */
     public void mostrar() {
         configurarUI();
-        ventana.setScene(new Scene(crearLayoutPrincipal(), 600, 650));
+        ventana.setScene(new Scene(crearLayoutPrincipal(), 800, 650)); // Aumenté el ancho para acomodar las dos tablas
         ventana.setTitle("Gestión de Campus y Tutorados - " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         ventana.show();
         cargarCampus();
         cargarProfesores();
     }
 
+    /**
+     * Configura la interfaz de usuario para la ventana de gestión de campus y tutorados.
+     * Inicializa los componentes de la interfaz, configura sus propiedades y establece
+     * los eventos de clic y de cambio de selección en los componentes.
+     */
+    @SuppressWarnings("unchecked")
     private void configurarUI() {
         rbInsertar.setToggleGroup(tgOperacion);
         rbActualizar.setToggleGroup(tgOperacion);
@@ -67,18 +77,69 @@ public class VentanaDBAdmin {
         cbOperacionPrincipal.setValue("Gestión de Campus");
         cbOperacionPrincipal.setOnAction(e -> cambiarPanel());
 
-        colNumeroControl.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getNumeroControl()));
-        colNombre.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getNombre()));
-        tableAlumnos.getColumns().addAll(colNumeroControl, colNombre);
-        tableAlumnos.setOnMouseClicked(e -> rellenarCamposDesdeTabla());
+        // Configurar tablas
+        configurarTabla(tableAlumnosDisponibles, "Disponibles para Asignar");
+        configurarTabla(tableAlumnosAsignados, "Alumnos Asignados");
+
+        cbProfesor.setOnAction(e -> {
+            cargarAlumnosAsignados();
+        });
+
+        // Configurar SplitPane
+        splitPaneTablas.getItems().addAll(
+            new VBox(new Label("Alumnos Disponibles para Asignar"), tableAlumnosDisponibles),
+            new VBox(new Label("Alumnos Ya Asignados"), tableAlumnosAsignados)
+        );
+        splitPaneTablas.setDividerPositions(0.5);
+
+        // Configurar eventos de clic
+        tableAlumnosDisponibles.setOnMouseClicked(e -> rellenarCamposDesdeTabla(tableAlumnosDisponibles));
+        tableAlumnosAsignados.setOnMouseClicked(e -> rellenarCamposDesdeTabla(tableAlumnosAsignados));
 
         lblFechaActual.setText("Fecha actual: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
     }
 
+    /**
+     * Configura una TableView para mostrar la información de los Alumnos. La configuración
+     * incluye establecer las columnas para mostrar los siguientes atributos de los Alumnos:
+     * número de control, nombres, apellido paterno, apellido materno y carrera.
+     * 
+     */
+    private void configurarTabla(TableView<Alumno> tabla, String titulo) {
+        TableColumn<Alumno, String> colNumeroControl = new TableColumn<>("Número Control");
+        colNumeroControl.setCellValueFactory(cellData -> cellData.getValue().numeroControlProperty());
+        
+        TableColumn<Alumno, String> colNombres = new TableColumn<>("Nombres");
+        colNombres.setCellValueFactory(cellData -> cellData.getValue().nombresProperty());
+        
+        TableColumn<Alumno, String> colApellidoPaterno = new TableColumn<>("Apellido Paterno");
+        colApellidoPaterno.setCellValueFactory(cellData -> cellData.getValue().apellidoPaternoProperty());
+        
+        TableColumn<Alumno, String> colApellidoMaterno = new TableColumn<>("Apellido Materno");
+        colApellidoMaterno.setCellValueFactory(cellData -> cellData.getValue().apellidoMaternoProperty());
+
+        TableColumn<Alumno, String> colCarrera = new TableColumn<>("Carrera");
+        colCarrera.setCellValueFactory(cellData -> cellData.getValue().carreraProperty());
+
+        tabla.getColumns().clear();
+        tabla.getColumns().addAll(colNumeroControl, colNombres, colApellidoPaterno, colApellidoMaterno, colCarrera);
+    }
+
+    /**
+     * Crea el layout principal de la ventana para el administrador de base de datos.
+     * El layout consta de una sección para la gestión de campus y otra sección para
+     * el registro de tutorados. La sección de gestión de campus permite insertar,
+     * actualizar o eliminar campus, mientras que la sección de registro de tutorados
+     * permite asignar profesores a los alumnos. La sección de gestión de campus
+     * se muestra por defecto, y se puede cambiar a la sección de registro de
+     * tutorados seleccionando la opción correspondiente en el combobox de la parte
+     * superior de la ventana.
+     * @return El layout principal de la ventana.
+     */
     private VBox crearLayoutPrincipal() {
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
-
+    
         HBox panelOperaciones = new HBox(10, new Label("Operación:"), rbInsertar, rbActualizar, rbEliminar);
         GridPane gpFormulario = new GridPane();
         gpFormulario.setVgap(10);
@@ -93,7 +154,7 @@ public class VentanaDBAdmin {
         HBox panelBotones = new HBox(10, btnEjecutar, btnLimpiar);
         Label lblLista = new Label("Lista de Campus:");
         lvCampus.setPrefHeight(150);
-
+    
         panelCampus.getChildren().addAll(
             new Label("GESTIÓN DE CAMPUS (DBA)"),
             panelOperaciones,
@@ -102,32 +163,44 @@ public class VentanaDBAdmin {
             lblLista,
             lvCampus
         );
-
+    
         cbCampus.setOnAction(e -> rellenarCampos());
         lvCampus.setOnMouseClicked(e -> rellenarCamposDesdeLista());
-
+    
+        // Configuración de la sección de Tutorados
         GridPane gpTutorados = new GridPane();
         gpTutorados.setVgap(10);
         gpTutorados.setHgap(10);
         gpTutorados.addRow(0, new Label("Profesor Asignado:"), cbProfesor);
         gpTutorados.addRow(1, new Label("Nombre del Alumno:"), tfNombreAlumno);
         gpTutorados.addRow(2, new Label("N. Control:"), tfNumeroControlAlumno);
-
+    
         tfNombreAlumno.setEditable(false);
         tfNumeroControlAlumno.setEditable(false);
-
+    
         btnAsignarProfesor.setOnAction(e -> asignarProfesor());
-
+        
+        Button btnLimpiarTutorados = new Button("Limpiar");
+        btnLimpiarTutorados.setOnAction(e -> {
+            cbProfesor.getSelectionModel().clearSelection();
+            tfNumeroControlAlumno.clear();
+            tfNombreAlumno.clear();
+            tableAlumnosDisponibles.getSelectionModel().clearSelection();
+            tableAlumnosAsignados.getSelectionModel().clearSelection();
+        });
+    
+        HBox panelBotonesTutorados = new HBox(10, btnAsignarProfesor, btnLimpiarTutorados);
+    
         panelTutorados.getChildren().addAll(
             new Label("REGISTRO DE TUTORADOS"),
             gpTutorados,
-            tableAlumnos,
-            btnAsignarProfesor
+            splitPaneTablas,
+            panelBotonesTutorados
         );
-
+    
         StackPane paneles = new StackPane(panelCampus, panelTutorados);
         panelTutorados.setVisible(false);
-
+    
         HBox panelSuperior = new HBox();
         panelSuperior.setPadding(new Insets(0, 0, 10, 0));
         panelSuperior.setSpacing(10);
@@ -136,17 +209,22 @@ public class VentanaDBAdmin {
         Region espacio = new Region();
         HBox.setHgrow(espacio, Priority.ALWAYS);
         panelSuperior.getChildren().addAll(lblFechaActual, espacio, lblAdmin);
-
-layout.getChildren().addAll(
-    panelSuperior,
-    new Label("Operación Principal:"), cbOperacionPrincipal,
-    paneles
-);
-
-
+    
+        layout.getChildren().addAll(
+            panelSuperior,
+            new Label("Operación Principal:"), cbOperacionPrincipal,
+            paneles
+        );
+    
         return layout;
     }
 
+    /**
+     * Cambia el panel mostrado en la interfaz de usuario.
+     * Si se selecciona "Gestión de Campus", se muestra el panel de gestión de campus.
+     * Si se selecciona "Registro de Tutorados", se muestra el panel de registro de tutorados.
+     * Llama a cargarAlumnos() para cargar la lista de alumnos en el panel de registro de tutorados.
+     */
     private void cambiarPanel() {
         boolean esCampus = cbOperacionPrincipal.getValue().equals("Gestión de Campus");
         panelCampus.setVisible(esCampus);
@@ -154,6 +232,13 @@ layout.getChildren().addAll(
         if (!esCampus) cargarAlumnos();
     }
 
+    /**
+     * Actualiza la visibilidad de los campos de la interfaz de usuario.
+     * Si se selecciona "Insertar", deshabilita el campo de selección de campus y
+     * establece la opacidad del campo de ID en 0.3.
+     * Si se selecciona "Eliminar", deshabilita el campo de ID y
+     * establece la opacidad del campo de nombre en 0.3.
+     */
     private void actualizarVisibilidadCampos() {
         boolean insertar = rbInsertar.isSelected();
         boolean eliminar = rbEliminar.isSelected();
@@ -165,6 +250,13 @@ layout.getChildren().addAll(
         tfNombre.setOpacity(eliminar ? 0.3 : 1);
     }
 
+    /**
+     * Ejecuta la operación seleccionada en la interfaz de usuario.
+     * Realiza la conexión a la base de datos, ejecuta la operación correspondiente
+     * (insertar, actualizar o eliminar) y vuelve a cargar los campus en la interfaz
+     * de usuario. Muestra un diálogo de error si ocurre un error de base de datos.
+     * Cierra la conexión a la base de datos al finalizar.
+     */
     private void ejecutarOperacion() {
         try {
             conn = conexion.conectar();
@@ -181,6 +273,14 @@ layout.getChildren().addAll(
         }
     }
 
+    /**
+     * Carga los campus en la interfaz de usuario.
+     * Limpia las listas de campus en el combobox y en la lista de campus,
+     * conecta a la base de datos, ejecuta un query para obtener los campus,
+     * y los agrega a las listas. Muestra un diálogo de error si ocurre
+     * un error de base de datos. Cierra la conexión a la base de datos
+     * al finalizar.
+     */
     private void cargarCampus() {
         cbCampus.getItems().clear();
         lvCampus.getItems().clear();
@@ -201,6 +301,13 @@ layout.getChildren().addAll(
         }
     }
 
+/**
+ * Rellena los campos de texto con el ID y el nombre del campus seleccionado
+ * en el ComboBox de campus. Si no hay un campus seleccionado, no realiza 
+ * ninguna acción. Se espera que los valores en el ComboBox estén en el 
+ * formato "ID - Nombre".
+ */
+
     private void rellenarCampos() {
         if (cbCampus.getValue() == null) return;
         String[] partes = cbCampus.getValue().split(" - ", 2);
@@ -210,6 +317,11 @@ layout.getChildren().addAll(
         }
     }
 
+    /**
+     * Rellena los campos de texto con el ID y el nombre del campus seleccionado
+     * en la lista de campus. Si no hay un campus seleccionado, no realiza ninguna
+     * accion. Se espera que los valores en la lista estan en el formato "ID - Nombre".
+     */
     private void rellenarCamposDesdeLista() {
         String seleccion = lvCampus.getSelectionModel().getSelectedItem();
         if (seleccion == null) return;
@@ -219,6 +331,13 @@ layout.getChildren().addAll(
             tfNombre.setText(partes[1]);
         }
     }
+
+/**
+ * Inserta un nuevo campus en la base de datos con el nombre especificado.
+ * Si el campo de nombre está vacío, muestra un error y no realiza la inserción.
+ * 
+ * @throws SQLException Si ocurre un error al ejecutar la consulta SQL.
+ */
 
     private void insertarCampus() throws SQLException {
         if (tfNombre.getText().isEmpty()) {
@@ -267,17 +386,38 @@ layout.getChildren().addAll(
         }
     }
 
+    /**
+     * Limpia los campos de texto y los ComboBox de la interfaz de usuario.
+     * Limpia el campo de ID, el campo de nombre, el ComboBox de campus,
+     * la lista de campus, el ComboBox de profesores, el campo de número de
+     * control, el campo de nombre del alumno y las selecciones de las tablas
+     * de alumnos disponibles y asignados.
+     */
     private void limpiarFormulario() {
         tfId.clear();
         tfNombre.clear();
         cbCampus.getSelectionModel().clearSelection();
         lvCampus.getSelectionModel().clearSelection();
+        
+        cbProfesor.getSelectionModel().clearSelection();
+        tfNumeroControlAlumno.clear();
+        tfNombreAlumno.clear();
+        tableAlumnosDisponibles.getSelectionModel().clearSelection();
+        tableAlumnosAsignados.getSelectionModel().clearSelection();
     }
 
     private void mostrarError(String mensaje) {
         Alert alerta = new Alert(Alert.AlertType.ERROR, mensaje);
         alerta.showAndWait();
     }
+
+    /**
+     * Carga la lista de profesores desde la base de datos y los muestra 
+     * en el ComboBox de selección de profesores. 
+     * Ejecuta una consulta para obtener los datos de los profesores incluyendo 
+     * sus nombres y apellidos, y los agrega al ComboBox en el formato "ID - Nombre Completo".
+     * Muestra un mensaje de error si ocurre un problema al realizar la consulta.
+     */
 
     private void cargarProfesores() {
         try {
@@ -300,32 +440,114 @@ layout.getChildren().addAll(
     }
 
     private void cargarAlumnos() {
+        cargarAlumnosDisponibles();
+        cargarAlumnosAsignados();
+    }
+
+    /**
+     * Carga la lista de alumnos disponibles (sin asignar) desde la base de datos y los muestra 
+     * en la tabla de alumnos disponibles. 
+     * Ejecuta una consulta para obtener los datos de los alumnos incluyendo 
+     * sus números de control, nombres, apellidos y carreras, y los agrega a la tabla en el formato "NC - Nombres Apellidos Carrera".
+     * Muestra un mensaje de error si ocurre un problema al realizar la consulta.
+     */
+    private void cargarAlumnosDisponibles() {
         try {
             conn = conexion.conectar();
-            String query = "SELECT numero_control, nombres, apellido_paterno FROM Alumno WHERE idProfesor = 0 OR idProfesor IS NULL";
+            String query = "SELECT a.numero_control, a.nombres, a.apellido_paterno, " +
+                          "a.apellido_materno, c.nombre as carrera " +
+                          "FROM Alumno a " +
+                          "JOIN Carrera c ON a.idCarrera = c.idCarrera " +
+                          "WHERE a.idProfesor = 0 OR a.idProfesor IS NULL";
             PreparedStatement stmt = conn.prepareStatement(query);
             ResultSet rs = stmt.executeQuery();
-            tableAlumnos.getItems().clear();
+            tableAlumnosDisponibles.getItems().clear();
             while (rs.next()) {
                 String numeroControl = rs.getString("numero_control");
-                String nombreCompleto = rs.getString("nombres") + " " + rs.getString("apellido_paterno");
-                tableAlumnos.getItems().add(new Alumno(numeroControl, nombreCompleto));
+                String nombres = rs.getString("nombres");
+                String apellidoPaterno = rs.getString("apellido_paterno");
+                String apellidoMaterno = rs.getString("apellido_materno");
+                String carrera = rs.getString("carrera");
+                tableAlumnosDisponibles.getItems().add(new Alumno(numeroControl, nombres, apellidoPaterno, 
+                                                         apellidoMaterno, carrera));
             }
         } catch (SQLException e) {
-            mostrarError("Error al cargar alumnos: " + e.getMessage());
+            mostrarError("Error al cargar alumnos disponibles: " + e.getMessage());
         } finally {
             if (conn != null) try { conn.close(); } catch (SQLException ignored) {}
         }
     }
 
-    private void rellenarCamposDesdeTabla() {
-        Alumno seleccionado = tableAlumnos.getSelectionModel().getSelectedItem();
-        if (seleccionado != null) {
-            tfNombreAlumno.setText(seleccionado.getNombre());
-            tfNumeroControlAlumno.setText(seleccionado.getNumeroControl());
+    /**
+     * Carga la lista de alumnos asignados al profesor seleccionado en el ComboBox
+     * de selección de profesores y los muestra en la tabla de alumnos asignados.
+     * Ejecuta una consulta para obtener los datos de los alumnos incluyendo 
+     * sus números de control, nombres, apellidos y carreras, y los agrega a la tabla
+     * en el formato "NC - Nombres Apellidos Carrera". Si no se selecciona un profesor,
+     * se limpia la tabla. Muestra un mensaje de error si ocurre un problema al realizar
+     * la consulta.
+     */
+    private void cargarAlumnosAsignados() {
+        String profesorSeleccionado = cbProfesor.getValue();
+        if (profesorSeleccionado == null || profesorSeleccionado.isEmpty()) {
+            tableAlumnosAsignados.getItems().clear();
+            return;
+        }
+    
+        try {
+            conn = conexion.conectar();
+            int idProfesor = Integer.parseInt(profesorSeleccionado.split(" - ")[0].trim());
+            
+            String query = "SELECT a.numero_control, a.nombres, a.apellido_paterno, " +
+                          "a.apellido_materno, c.nombre as carrera " +
+                          "FROM Alumno a " +
+                          "JOIN Carrera c ON a.idCarrera = c.idCarrera " +
+                          "WHERE a.idProfesor = ?";
+            PreparedStatement stmt = conn.prepareStatement(query);
+            stmt.setInt(1, idProfesor);
+            ResultSet rs = stmt.executeQuery();
+            
+            tableAlumnosAsignados.getItems().clear();
+            while (rs.next()) {
+                String numeroControl = rs.getString("numero_control");
+                String nombres = rs.getString("nombres");
+                String apellidoPaterno = rs.getString("apellido_paterno");
+                String apellidoMaterno = rs.getString("apellido_materno");
+                String carrera = rs.getString("carrera");
+                tableAlumnosAsignados.getItems().add(new Alumno(numeroControl, nombres, apellidoPaterno, 
+                                                         apellidoMaterno, carrera));
+            }
+        } catch (SQLException e) {
+            mostrarError("Error al cargar alumnos asignados: " + e.getMessage());
+        } finally {
+            if (conn != null) try { conn.close(); } catch (SQLException ignored) {}
         }
     }
 
+    private void rellenarCamposDesdeTabla(TableView<Alumno> tabla) {
+        Alumno seleccionado = tabla.getSelectionModel().getSelectedItem();
+        if (seleccionado != null && tabla == tableAlumnosDisponibles) {
+            tfNombreAlumno.setText(seleccionado.getNombres() + " " + seleccionado.getApellidoPaterno());
+            tfNumeroControlAlumno.setText(seleccionado.getNumeroControl());
+        } else {
+            tfNombreAlumno.clear();
+            tfNumeroControlAlumno.clear();
+        }
+    }
+
+    /**
+     * Asigna un profesor a un alumno.
+     * 
+     * Valida que se haya seleccionado un profesor y un alumno,
+     * y que el alumno exista en la base de datos.
+     * 
+     * Si es exitoso, muestra un mensaje de confirmación con los
+     * detalles de la asignación y limpia los campos de texto y
+     * las selecciones de las tablas.
+     * 
+     * Si falla, muestra un mensaje de error con la descripción del
+     * problema.
+     */
     private void asignarProfesor() {
         String profesorSeleccionado = cbProfesor.getValue();
         String numeroControlStr = tfNumeroControlAlumno.getText();
@@ -354,11 +576,11 @@ layout.getChildren().addAll(
                     "Fecha: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                 );
                 alerta.showAndWait();
-                tableAlumnos.getSelectionModel().clearSelection();
-                cbProfesor.getSelectionModel().clearSelection();
+                tableAlumnosDisponibles.getSelectionModel().clearSelection();
                 tfNombreAlumno.clear();
                 tfNumeroControlAlumno.clear();
-                cargarAlumnos();
+                cargarAlumnosDisponibles(); // Solo recarga los disponibles
+                cargarAlumnosAsignados();   // Recarga los asignados al profesor actual
             } else {
                 mostrarError("No se encontró el alumno seleccionado.");
             }
@@ -367,21 +589,34 @@ layout.getChildren().addAll(
         }
     }
 
+
+    /** Clase interna para representar un alumno en la tabla, para poder acceder a sus propiedades de manera mas facil xd */
     public class Alumno {
         private SimpleStringProperty numeroControl;
-        private SimpleStringProperty nombre;
-
-        public Alumno(String numeroControl, String nombre) {
+        private SimpleStringProperty nombres;
+        private SimpleStringProperty apellidoPaterno;
+        private SimpleStringProperty apellidoMaterno;
+        private SimpleStringProperty carrera;
+    
+        public Alumno(String numeroControl, String nombres, String apellidoPaterno, 
+                     String apellidoMaterno, String carrera) {
             this.numeroControl = new SimpleStringProperty(numeroControl);
-            this.nombre = new SimpleStringProperty(nombre);
+            this.nombres = new SimpleStringProperty(nombres);
+            this.apellidoPaterno = new SimpleStringProperty(apellidoPaterno);
+            this.apellidoMaterno = new SimpleStringProperty(apellidoMaterno);
+            this.carrera = new SimpleStringProperty(carrera);
         }
-
-        public String getNumeroControl() {
-            return numeroControl.get();
-        }
-
-        public String getNombre() {
-            return nombre.get();
-        }
+    
+        public String getNumeroControl() { return numeroControl.get(); }
+        public String getNombres() { return nombres.get(); }
+        public String getApellidoPaterno() { return apellidoPaterno.get(); }
+        public String getApellidoMaterno() { return apellidoMaterno.get(); }
+        public String getCarrera() { return carrera.get(); }
+    
+        public SimpleStringProperty numeroControlProperty() { return numeroControl; }
+        public SimpleStringProperty nombresProperty() { return nombres; }
+        public SimpleStringProperty apellidoPaternoProperty() { return apellidoPaterno; }
+        public SimpleStringProperty apellidoMaternoProperty() { return apellidoMaterno; }
+        public SimpleStringProperty carreraProperty() { return carrera; }
     }
 }
